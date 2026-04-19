@@ -1,16 +1,26 @@
-print('Python is running from inside the VM')
 from flask import Flask
 import redis
+import time
 
 app = Flask(__name__)
-# Connect to our Redis container
-cache = redis.Redis(host='db', port=6379)
+
+def get_hit_count():
+    retries = 5
+    cache = redis.Redis(host='db', port=6379)
+    while True:
+        try:
+            return cache.incr('hits')
+        except redis.exceptions.ConnectionError as exc:
+            if retries == 0:
+                raise exc
+            retries -= 1
+            print("Redis not ready, retrying in 2 seconds...")
+            time.sleep(2)
 
 @app.route('/')
 def hello():
-    # Increment a counter in Redis every time the page is refreshed
-    count = cache.incr('hits')
-    return f"<h1>Hello DevOps World!</h1><p>This page has been viewed {count} times.</p>"
+    count = get_hit_count()
+    return f"<h1>Hello DevOps World!</h1><p>Viewed {count} times.</p>"
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
